@@ -1,29 +1,75 @@
 const { execSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
-execSync("git add -A"); 
+const execSyncSafe = (command) => {
+    try {
+        execSync(command, { stdio: 'inherit' });
+    } catch (error) {
+        console.error(`Failed to execute command: ${command}`);
+        console.error(`Error message: ${error.message}`);
+        console.error(`Stack trace: ${error.stack}`);
+        process.exit(error.status);
+    }
+};
+
+// Add all changes to the staging area
+execSyncSafe("git add .");
 /**
- * Without git add -A, untracked files will show as ??
+ * Without git add ., untracked files will show as ??
  * renamed files will show as delete and ??
  * new files from untracked folder will not show...
  */
 
-// Run git diff --names-only and store the result in rows[]
-const gitDiffOutput = execSync('git status --porcelain=1 -z').toString().trim();
-const rows = gitDiffOutput ? gitDiffOutput.split("\0") : [];
+const gitChangesOutput = execSync('git status --porcelain=1').toString().trim();
+const rows = gitChangesOutput ? gitChangesOutput.split("\n") : [];
 
-const sourceDirs = [];
+const deletedSources = [];
+const modifiedSources = [];
+const pushSourceDir = (value) => modifiedSources.push(value);
+const pushDeletingSource = (value) => deletedSources.push(value);
+const splitAndPush = (values) => {
+    const [firstHalf, secondHalf] = values.split(/\s+->\s+/);
+    pushDeletingSource(firstHalf);
+    pushSourceDir(secondHalf);
+};
+const gitConditionsHandlers = {
+    C: pushSourceDir,
+    A: pushSourceDir,
+    U: pushSourceDir,
+    M: pushSourceDir, // Assuming M should behave the same as A
+    D: pushDeletingSource,
+    R: splitAndPush
+};
+
 for (const row of rows) {
-    // If the row starts with "org/force-app/main/default"
-    if (row.startsWith("org/force-app/main/default")) {
-        // Remove "org/" and store the result in sourceDirs
-        sourceDirs.push(row.replace("org/", ""));
+    if (row.startsWith("org/force-app/main/default") || row.startsWith("force-app/main/default")) {
+        const [reportingOption, filePath] = row.replace("org/", "").split(/\s+/);
+        gitConditionsHandlers[reportingOption](filePath);
     }
 }
 
 // Construct the Salesforce CLI command
-const sfProjectSourceConvertCommand = `sf project source convert --output-dir ./deploy --source-dir ${sourceDirs.join(' ')}`;
+const sfModificationPackageCommand = `sf project source convert --output-dir ./constructiveDeploy --source-dir ${modifiedSources.join(' ')}`;
+const sfDeletiionPackageCommand = `sf project source convert --output-dir ./destructiveChanges --source-dir ${deletedSources.join(' ')}`;
 
-process.chdir(path.resolve(__dirname, './org'));
-// Execute the Salesforce CLI command
-execSync(sfProjectSourceConvertCommand, { stdio: 'inherit' });
+// Change the working directory to the root of your Salesforce project
+const orgDirectory = path.resolve(__dirname, './org');
+if (fs.existsSync(orgDirectory)) {
+    console.error(`Moving to ${orgDirectory}.`);
+    process.chdir(orgDirectory);
+}
+
+// Execute the Salesforce CLI commands to create package.xml under deploy dir
+modifiedSources.length && execSyncSafe(sfModificationPackageCommand);
+deletedSources.length && execSyncSafe(sfDeletiionPackageCommand);
+
+/**
+ * You can’t use destructiveChanges.xml
+ * to delete items that are associated with an active
+ * Lightning page, such as a custom object,
+ * a component on the page, or the page itself.
+ * First, you must remove the page's action override
+ * by deactivating it in the Lightning App Builder.
+ * https://developer.salesforce.com/docs/atlas.en-us.daas.meta/daas/daas_destructive_changes.htm
+ */

@@ -50,7 +50,7 @@ if_not_exits_create_homologation_branch() {
     set -e
     local branchName=$1
     # shellcheck disable=SC2155
-    local existsBranch=$(git ls-remote --heads origin ${branchName})
+    local existsBranch=$(git ls-remote --heads origin "${branchName}")
     if [[ -z ${existsBranch} ]]; then
         return 0
     fi
