@@ -7,7 +7,7 @@ public with sharing class Sorting {
             if(values[i] > values[i + 1]){
                 Integer tmp = values[i];
                 values[i] = values[i + 1];
-                values[i + 1] = tmp;
+                values[i + 1] = tmp; 
             }
         }
         return values;

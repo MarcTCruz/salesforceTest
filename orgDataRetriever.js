@@ -1,7 +1,8 @@
 const fs = require('fs');
 const { DOMParser } = require('xmldom');
 
-function replaceMembersWithAsterisksAll(filePath) {
+function replaceMembersWithAsterisksAll(filePath)
+{
   // Read the file synchronously
   const inputXml = fs.readFileSync(filePath, 'utf8');
   // Perform the substitution
@@ -12,20 +13,23 @@ function replaceMembersWithAsterisksAll(filePath) {
   console.log('Conversion completed successfully.');
 }
 
-function namesGetAll(filePath) {
+function namesGetAll(filePath)
+{
   const xmlData = fs.readFileSync(filePath, 'utf8');
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlData, 'application/xml');
 
   const nameElements = doc.getElementsByTagName('name');
   const names = [];
-  for (let i = 0; i < nameElements.length; i++) {
+  for (let i = 0; i < nameElements.length; i++)
+  {
     names.push(nameElements[i].textContent);
   }
   return names;
 }
 
-function salesforceRetrieveAll() {
+function salesforceRetrieveAll()
+{
   // Get all names and log them
   const names = namesGetAll(process.argv[2]);
 
@@ -40,34 +44,40 @@ function salesforceRetrieveAll() {
 salesforceRetrieveAll();
 
 /**
+ * checkout self
  * branch structure:
  * root/pipeline_script.yml
- * root/Org/{salesforce project}
+ * root/org/{salesforce project}
  * 
  * install dependencies
- * create stage0 branch if it does not exist.
- * create homologation branch if it does not exist.
- *  checkout new branch
- *  create salesoforce project
- *  generate salesforce manifest
- *  retrieve data using javascript + sf cli.
- *  git add .
- *  git commit 
- *  git pull
- * create production branch if it does not exist.
- *  checkout new branch
- *  create salesoforce project
- *  generate salesforce manifest
+ * create stage0 branch based on model branch if it does not exist.
+ * create Homologation branch based on model branch if it does not exist.
+ *  checkout most recent branch
+ *  generate salesforce project
+ *  authorize salesforce project
+ *  generate salesforce manifest from-org
  *  retrieve data using javascript + sf cli.
  *  git add .
  *  git commit 
  *  git pull
  * 
+ * ---------------------------------------------
+ * create production branch if it does not exist.
+ *  checkout most recent branch
+ *  generate salesforce project
+ *  authorize salesforce project
+ *  generate salesforce manifest from-org
+ *  retrieve data using javascript + sf cli.
+ *  git add .
+ *  git commit 
+ *  git pull
+ * ---------------------------------------------
+ * 
  * main:stage0:
- *  on pull:
- *    make salesforce tests(sf tests ./manifest/card/{cardNumber}.xml):
- *      on succeed: 
- *        deploy to Salesforce HML(sf deploy ./manifest/card/cardNumber.xml)
+ *  on pull(If pipeline is already running, fail or wait):
+ *    make salesforce tests(sf tests ./manifest/{cardNumber}/deploy.xml, ./manifest/{cardNumber}/destructiveChangesPre.xml, ./manifest/{cardNumber}/destructiveChangesPost.xml):
+ *      on success: 
+ *        deploy to Salesforce HML(sf deploy ./manifest/{cardNumber}/[A-z]{1,}\.xml)
  *        make main like stage0
  *        git switch to Homologation branch
  *        sf retrieve changes from salesforce(sf retrieve ./manifest/card/cardNumber.xml or retrieve all using javascript?)
