@@ -1,1 +1,0 @@
-/home/mtpc/Documents/GitHub/salesforceTest/scripts/diffManifestGenerator.js
