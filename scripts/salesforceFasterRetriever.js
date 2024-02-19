@@ -76,15 +76,15 @@ function retrieve(manifestPath) {
 }
 
 if (require.main === module) {
-  async () => {
+  (async () => {
     if (!process.argv[2]) {
       console.error('Error: You must call this script with the package.xml file path as an argument.')
-      console.erro(`Usage: node ${process.argv[1]} package.xml`);
+      console.error(`Usage: node ${process.argv[1]} package.xml`);
       process.exit(1);
     }
 
     await promptUserForConfirmation('It will replace all retrieved files, do you want to continue? (y/n): ', () => process.exit(0));
-
-    retrieve();
-  }
+    const manifestPath = process.argv[2];
+    retrieve(manifestPath);
+  })(); // Immediately invoke the async function
 }

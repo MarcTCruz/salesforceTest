@@ -13,7 +13,6 @@
     <enableFlowInterviewSharingEnabled>true</enableFlowInterviewSharingEnabled>
     <enableFlowNullPreviousValueFix>false</enableFlowNullPreviousValueFix>
     <enableFlowPauseEnabled>false</enableFlowPauseEnabled>
-    <enableFlowReactiveDisplayText>false</enableFlowReactiveDisplayText>
     <enableFlowReactiveScreens>false</enableFlowReactiveScreens>
     <enableFlowUseApexExceptionEmail>false</enableFlowUseApexExceptionEmail>
     <enableFlowViaRestUsesUserCtxt>true</enableFlowViaRestUsesUserCtxt>

@@ -1,5 +1,5 @@
 public with sharing class Sorting {
-    public Integer[] numbersSorted(Integer[] values) {
+    public Integer[] mergedNumbers(Integer[] values) {
         // Implement sorting without using Salesforce standart sort
         Integer[] tmpValues = new Integer[values.size() / 2];
         for(Integer i = 0; i < tmpValues.size(); i+=2){
@@ -7,7 +7,7 @@ public with sharing class Sorting {
             if(values[i] > values[i + 1]){
                 Integer tmp = values[i];
                 values[i] = values[i + 1];
-                values[i + 1] = tmp; 
+                values[i + 1] = tmp;
             }
         }
         return values;
