@@ -15,13 +15,10 @@ const modifiedSfSources = []; // I think it does not need to be a set, need to c
  * Executes a shell command synchronously and safely, handling errors gracefully.
  * @param {string} command - The shell command to execute.
  */
-const execSyncSafe = (command) =>
-{
-    try
-    {
+const execSyncSafe = (command) => {
+    try {
         return execSync(command, { stdio: 'inherit' });
-    } catch (error)
-    {
+    } catch (error) {
         console.error(`Failed to execute command: ${command}`);
         console.error(`Error message: ${error.message}`);
         console.error(`Stack trace: ${error.stack}`);
@@ -39,8 +36,7 @@ const pushSourceDir = (sfFilePath) => modifiedSfSources.push(sfFilePath);
  * @param {string} sfFilePath - The value representing the source to be deleted.
  * @param {string} fullGitPath - The full path of the source to be deleted.
  */
-const pushDeletedSource = (sfFilePath, fullGitPath) =>
-{
+const pushDeletedSource = (sfFilePath, fullGitPath) => {
     deletedSfPaths.push(sfFilePath);
     deletedFullGitPaths.push(fullGitPath);
 };
@@ -49,8 +45,7 @@ const pushDeletedSource = (sfFilePath, fullGitPath) =>
  * Splits a string and pushes the resulting values to the appropriate handlers.
  * @param {string} valuesStr - The string containing the values to be split and pushed.
  */
-const splitAndPush = (valuesStr) =>
-{
+const splitAndPush = (valuesStr) => {
     const [to, from] = valuesStr.split(/\0/);
     pushDeletedSource(from);
     pushSourceDir(to);
@@ -74,13 +69,11 @@ const gitConditionsHandlers =
  * @param {RegExp} regex - An object containing the regex pattern and callback function.
  * @param {Function} callback - The callback function to invoke with the matches.
  */
-function onMatchCall(str, regex, callback)
-{
+function onMatchCall(str, regex, callback) {
     var result = false;
     var matches;
     const regex = regex;
-    while ((matches = regex.exec(str)) !== null)
-    {
+    while ((matches = regex.exec(str)) !== null) {
         if (matches.index === regex.lastIndex)
         // This is good to avoid infinite loops with zero-width matches
         {
@@ -98,8 +91,7 @@ function onMatchCall(str, regex, callback)
  * @param {Array<string>} sources - The array of source directories to process.
  * @param {string} outputDir - The directory where the converted XML files will be saved.
  */
-const makeManifest = (sources, outputDir) =>
-{
+const makeManifest = (sources, outputDir) => {
     if (sources.length === 0) return;
 
     const salesforceBaseDirectory = path.resolve(__dirname, definitions.SALESFORCE_PATH);
@@ -109,11 +101,9 @@ const makeManifest = (sources, outputDir) =>
     execSyncSafe(sfPackageCommand);
 };
 
-const isSFDXProject = (somePath) =>
-{
+const isSFDXProject = (somePath) => {
     const sfdxConfigPath = path.join(somePath, 'sfdx-project.json');
-    if (fs.existsSync(sfdxConfigPath))
-    {
+    if (fs.existsSync(sfdxConfigPath)) {
         return true;
     }
 
@@ -124,10 +114,8 @@ const isSFDXProject = (somePath) =>
  * Restores deleted files from Git in a single command.
  * @param {Array<string>} filePaths - An array of file paths to restore.
  */
-function restoreDeletedFilesUsingGit(filePaths)
-{
-    if (!Array.isArray(filePaths) || filePaths.length === 0)
-    {
+function restoreDeletedFilesUsingGit(filePaths) {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
         return false;
     }
 
@@ -141,22 +129,17 @@ function restoreDeletedFilesUsingGit(filePaths)
  * Deletes a list of files specified by their file paths.
  * @param {Array<string>} filePaths - An array of file paths to delete.
  */
-function deleteFiles(filePaths)
-{
-    if (!Array.isArray(filePaths) || filePaths.length === 0)
-    {
+function deleteFiles(filePaths) {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
         console.debug('No file paths provided to delete.');
         return;
     }
 
     process.chdir(definitions.LOCAL_REPOSITORY_ROOT);
-    filePaths.forEach((filePath) =>
-    {
-        try
-        {
+    filePaths.forEach((filePath) => {
+        try {
             fs.unlinkSync(filePath);
-        } catch (error)
-        {
+        } catch (error) {
             console.error(`Failed to delete file: ${filePath}`);
             console.error(`Error message: ${error.message}`);
             process.exit(error.status);
@@ -170,10 +153,8 @@ const matchingSetup =
     discoveredSalesforcePath: undefined,
     wrongPaths: new Set(),
     regex: /(.*?)(force-app\/main\/default\/.*)/gm,
-    callback: (matches, fullPath) =>
-    {
-        if (matchingSetup.wrongPaths.has(matches[1]))
-        {
+    callback: (matches, fullPath) => {
+        if (matchingSetup.wrongPaths.has(matches[1])) {
             return;
         }
 
@@ -186,8 +167,7 @@ const matchingSetup =
         const sfFilePath = matches[matches.length - 1];
         const isSfDXPath = matchingSetup.discoveredSalesforcePath === sfFilePath ||
             isSFDXProject(matches[1]);
-        if (isSfDXPath === false)
-        {
+        if (isSfDXPath === false) {
             matchingSetup.wrongPaths.add(matches[1]);
             return;
         }
@@ -216,8 +196,7 @@ gitChangesOutput
     // Formats output to replace postceded null(\0 {char} ) for newline, for easier handling of mine
     .replace(/\0([A-Z])\s+/gm, `\n$1 `)
     .split("\n")
-    .forEach(row =>
-    {
+    .forEach(row => {
         const [option, filePath] = row.split(/(?<=^[A-Z])\s+/);//split the space between first characther and remaining path
         matchingSetup.option = option;
         onMatchCall(filePath, matchingSetup.regex, matchingSetup.callback);

@@ -1,7 +1,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-import { chdir, cwd } from 'node:process';
+const { chdir, cwd } = require('process');
 
 const commandSafeExit = (fn, ...args) => {
     try {
@@ -17,10 +17,8 @@ const execSyncSafe = (...args) => commandSafeExit(execSync, ...args, { stdio: 'i
 const chdirSafe = (...args) => commandSafeExit(chdir, ...args);
 const cwdSafe = (...args) => commandSafeExit(cwd, ...args);
 
-// Function to change directory to the Salesforce DX project
-function chdirSfdxProject() {
-    chdirSafe(settings.org_path);
-}
+
+
 
 // Function to retrieve and commit changes from sandbox
 function retrieveFromSalesforceAndCommitChanges(branchName, commitMessage) {
@@ -44,42 +42,7 @@ function gitBranchesSync(who, accordingTo) {
     execSyncSafe(`git push`);
 }
 
-// Function to get the base64 content of the sfdxUrlFile
-function salesforceUrlFileAsBase64() {
-    try {
-        execSync(`sf org display --target-org ${settings.org_alias}`);
-    } catch (error) {
-        execSyncSafe(`sf org login web --alias ${settings.org_alias}`);
-        execSyncSafe(`sf config set target-org ${settings.org_alias}`);
-    }
 
-    const result = execSyncSafe(`sf org display --target-org ${settings.org_alias} --verbose --json`);
-    return atob(result);
-}
-
-// Function to authenticate with Salesforce
-function salesforceAuthenticate(urlFileAsBase64) {
-    const authFileName = crypto.randomUUID() + ".json";
-    const authFile = path.join(cwdSafe(), authFileName);
-    fs.writeFileSync(authFile, btoa(urlFileAsBase64));
-    execSyncSafe(`sf org login sfdx-url --sfdx-url-file ${authFile} --set-default --alias ${settings.org_alias}`);
-    fs.unlinkSync(authFile);
-}
-
-
-function salesforceProjectGenerate(dir = "") {
-    if (dir.length) {
-        settings.org_path = path.join(cwdSafe(), dir);
-    }
-    const currentDir = cwdSafe();
-    chdirSfdxProject();
-    execSyncSafe(`sf project generate --name org --template empty`);
-    chdirSafe(currentDir); // Go back to the original directory
-}
-
-function salesforceProjectPopulate() {
-    execSyncSafe(`sf project generate manifest --output-dir ./manifest --from-org ${settings.org_alias}`);
-}
 function ifNotExistsCreateBranch(newBranchName, likeBranchName) {
     try {
         //exists locally
@@ -93,42 +56,101 @@ function ifNotExistsCreateBranch(newBranchName, likeBranchName) {
         }
     }
 
-    execSyncSafe(`git branch ${newBranchName}`);
+    execSyncSafe(`git branch ${newBranchName} ${likeBranchName}`);
     return true;
 }
 
 
-// Function to check if deployment tests pass
-function deploymentTestsPass() {
-    const validationJSON = execSyncSafe(`sf deploy metadata validate --manifest ./manifest/package.xml --target-org ${settings.org_alias} --json`, { encoding: 'utf8' });
-    const parsedValidation = JSON.parse(validationJSON);
-    const jobId = parsedValidation.result.id;
+const { load, basicFilePath } = require('./jsonStorage.js');
+function getSettingsByAlias(alias) {
+    manySettings = load(__filename + ".json");
 
-    if (!jobId) {
-        console.error('Unexpected result from validation initiation.');
-        console.debug(parsedValidation);
-        process.exit(1);
+    if (typeof manySettings[alias] === "undefined") {
+        manySettings[alias] = {};
     }
 
-    let parsedResult;
-    do {
-        execSyncSafe('sleep  5');
-        const JSONResult = execSyncSafe(`sf deploy metadata report --jobid ${jobId} --target-org ${settings.org_alias} --json`);
-        parsedResult = JSON.parse(JSONResult).result;
-        console.log(`Validation Status: ${parsedResult.status}`);
-    } while (parsedResult.done === false);
-
-    if (parsedResult.status !== 'Succeeded') {
-        console.error('Validation failed. Errors:');
-        console.error(parsedResult.details.componentFailures);
-        gitBranchesSync('stage1', 'stage0');
-        process.exit(1);
-    }
+    return manySettings[alias];
 }
 
-// Function to deploy metadata
-function deployMetadata() {
-    execSyncSafe(`sf deploy metadata -r force-app -x ./manifest/package.xml --target-org ${settings.org_alias}`);
+class SalesforceCI {
+    constructor(settingsAlias) {
+        this.org = getSettingsByAlias(settingsAlias);
+    }
+    // Function to check if deployment tests pass
+    deploymentTestsPass() {
+        const validationJSON = execSyncSafe(`sf deploy metadata validate --manifest ./manifest/package.xml --target-org ${this.org.alias} --json`, { encoding: 'utf8' });
+        const parsedValidation = JSON.parse(validationJSON);
+        const jobId = parsedValidation.result.id;
+
+        if (!jobId) {
+            console.error('Unexpected result from validation initiation.');
+            console.debug(parsedValidation);
+            process.exit(1);
+        }
+
+        let parsedResult;
+        do {
+            execSyncSafe('sleep  5');
+            const JSONResult = execSyncSafe(`sf deploy metadata report --jobid ${jobId} --target-org ${this.org.alias} --json`);
+            parsedResult = JSON.parse(JSONResult).result;
+            console.log(`Validation Status: ${parsedResult.status}`);
+        } while (parsedResult.done === false);
+
+        if (parsedResult.status !== 'Succeeded') {
+            console.error('Validation failed. Errors:');
+            console.error(parsedResult.details.componentFailures);
+            gitBranchesSync('stage1', 'stage0');
+            process.exit(1);
+        }
+    }
+
+    deployMetadata() {
+        execSyncSafe(`sf deploy metadata -r force-app -x ./manifest/package.xml --target-org ${this.org.alias}`);
+    }
+
+    chdirBack() {
+        chdirSafe(this.backPath);
+    }
+    chdirProject() {
+        this.backPath = cwdSafe();
+        chdirSafe(this.org.path);
+    }
+
+    salesforceProjectPopulate() {
+        execSyncSafe(`sf project generate manifest --output-dir ./manifest --from-org ${this.org.alias}`);
+    }
+
+    authenticate(urlFileAsBase64) {
+        const authFileName = crypto.randomUUID() + ".json";
+        const authFile = path.join(cwdSafe(), authFileName);
+        fs.writeFileSync(authFile, btoa(urlFileAsBase64));
+        execSyncSafe(`sf org login sfdx-url --sfdx-url-file ${authFile} --set-default --alias ${this.org.alias}`);
+        fs.unlinkSync(authFile);
+    }
+
+    getUrlFileAsBase64() {
+        try {
+            execSync(`sf org display --target-org ${this.org.alias}`);
+        } catch (error) {
+            execSyncSafe(`sf org login web --alias ${this.org.alias}`);
+            execSyncSafe(`sf config set target-org ${this.org.alias}`);
+        }
+
+        const result = execSyncSafe(`sf org display --target-org ${this.org.alias} --verbose --json`);
+        return atob(result);
+    }
+
+    projectGenerate(dir = "") {
+
+        if (dir.length) {
+            this.org.path = path.join(cwdSafe(), dir);
+        }
+
+        const currentDir = cwdSafe();
+        this.chdirProject();
+        execSyncSafe(`sf project generate --name org --template empty`);
+        this.chdirBack();
+    }
 }
 
 // Example usage
@@ -143,7 +165,7 @@ function deployMetadata() {
  * branch structure:
  * root/pipeline_script.yml
  * root/org/{salesforce project}
- * 
+ *
  * install dependencies
  * create stage0 branch based on model branch if it does not exist.
  * create Homologation branch based on model branch if it does not exist.
@@ -153,9 +175,9 @@ function deployMetadata() {
  *  generate salesforce manifest from-org
  *  retrieve data using javascript + sf cli.
  *  git add .
- *  git commit 
+ *  git commit
  *  git pull
- * 
+ *
  * ---------------------------------------------
  * create production branch if it does not exist.
  *  checkout most recent branch
@@ -164,14 +186,14 @@ function deployMetadata() {
  *  generate salesforce manifest from-org
  *  retrieve data using javascript + sf cli.
  *  git add .
- *  git commit 
+ *  git commit
  *  git pull
  * ---------------------------------------------
- * 
+ *
  * main:stage0:
  *  on pull(If pipeline is already running, fail or wait):
  *    make salesforce tests(sf tests ./manifest/{cardNumber}/deploy.xml, ./manifest/{cardNumber}/destructiveChangesPre.xml, ./manifest/{cardNumber}/destructiveChangesPost.xml):
- *      on success: 
+ *      on success:
  *        deploy to Salesforce HML(sf deploy ./manifest/{cardNumber}/[A-z]{1,}\.xml)
  *        make main like stage0
  *        git switch to Homologation branch
@@ -185,4 +207,4 @@ function deployMetadata() {
  *  on pull:
  *    store cardNumber
  */
-var settings = { org_alias: '', org_path: '' };
+
