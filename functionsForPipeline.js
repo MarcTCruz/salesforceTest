@@ -3,13 +3,10 @@ const fs = require('fs');
 const path = require('path');
 import { chdir, cwd } from 'node:process';
 
-const commandSafeExit = (fn, ...args) =>
-{
-    try
-    {
+const commandSafeExit = (fn, ...args) => {
+    try {
         return fn(...args);
-    } catch (error)
-    {
+    } catch (error) {
         console.error(`Failed to execute command: ${fn.name} ${args.join("")}`);
         console.error(`Error message: ${error.message}`);
         console.error(`Stack trace: ${error.stack}`);
@@ -21,14 +18,12 @@ const chdirSafe = (...args) => commandSafeExit(chdir, ...args);
 const cwdSafe = (...args) => commandSafeExit(cwd, ...args);
 
 // Function to change directory to the Salesforce DX project
-function chdirSfdxProject()
-{
+function chdirSfdxProject() {
     chdirSafe(settings.org_path);
 }
 
 // Function to retrieve and commit changes from sandbox
-function retrieveFromSalesforceAndCommitChanges(branchName, commitMessage)
-{
+function retrieveFromSalesforceAndCommitChanges(branchName, commitMessage) {
     execSyncSafe(`git switch ${branchName}`);
     execSyncSafe(`git fetch origin ${branchName}`);
 
@@ -37,28 +32,23 @@ function retrieveFromSalesforceAndCommitChanges(branchName, commitMessage)
 
     execSyncSafe(`git add .`);
     execSyncSafe(`git push`);
-    if (execSyncSafe(`git diff --staged --quiet`).error)
-    {
+    if (execSyncSafe(`git diff --staged --quiet`).error) {
         execSyncSafe(`git commit -m "${commitMessage}"`);
     }
 }
 
 // Function to sync branches
-function gitBranchesSync(who, accordingTo)
-{
+function gitBranchesSync(who, accordingTo) {
     execSyncSafe(`git checkout ${who}`);
     execSyncSafe(`git rebase ${accordingTo}`);
     execSyncSafe(`git push`);
 }
 
 // Function to get the base64 content of the sfdxUrlFile
-function salesforceUrlFileAsBase64()
-{
-    try
-    {
+function salesforceUrlFileAsBase64() {
+    try {
         execSync(`sf org display --target-org ${settings.org_alias}`);
-    } catch (error)
-    {
+    } catch (error) {
         execSyncSafe(`sf org login web --alias ${settings.org_alias}`);
         execSyncSafe(`sf config set target-org ${settings.org_alias}`);
     }
@@ -68,8 +58,7 @@ function salesforceUrlFileAsBase64()
 }
 
 // Function to authenticate with Salesforce
-function salesforceAuthenticate(urlFileAsBase64)
-{
+function salesforceAuthenticate(urlFileAsBase64) {
     const authFileName = crypto.randomUUID() + ".json";
     const authFile = path.join(cwdSafe(), authFileName);
     fs.writeFileSync(authFile, btoa(urlFileAsBase64));
@@ -78,10 +67,8 @@ function salesforceAuthenticate(urlFileAsBase64)
 }
 
 
-function salesforceProjectGenerate(dir = "")
-{
-    if (dir.length)
-    {
+function salesforceProjectGenerate(dir = "") {
+    if (dir.length) {
         settings.org_path = path.join(cwdSafe(), dir);
     }
     const currentDir = cwdSafe();
@@ -90,19 +77,15 @@ function salesforceProjectGenerate(dir = "")
     chdirSafe(currentDir); // Go back to the original directory
 }
 
-function salesforceProjectPopulate()
-{
+function salesforceProjectPopulate() {
     execSyncSafe(`sf project generate manifest --output-dir ./manifest --from-org ${settings.org_alias}`);
 }
-function ifNotExistsCreateBranch(newBranchName, likeBranchName)
-{
-    try
-    {
+function ifNotExistsCreateBranch(newBranchName, likeBranchName) {
+    try {
         //exists locally
         execSync(`git show-ref --verify --quiet refs/heads/${newBranchName}`);
         return false;
-    } catch (error)
-    {
+    } catch (error) {
         if (execSyncSafe(`git ls-remote --heads origin ${newBranchName}`).length > 0)
         //exists remotelly
         {
@@ -116,30 +99,26 @@ function ifNotExistsCreateBranch(newBranchName, likeBranchName)
 
 
 // Function to check if deployment tests pass
-function deploymentTestsPass()
-{
+function deploymentTestsPass() {
     const validationJSON = execSyncSafe(`sf deploy metadata validate --manifest ./manifest/package.xml --target-org ${settings.org_alias} --json`, { encoding: 'utf8' });
     const parsedValidation = JSON.parse(validationJSON);
     const jobId = parsedValidation.result.id;
 
-    if (!jobId)
-    {
+    if (!jobId) {
         console.error('Unexpected result from validation initiation.');
         console.debug(parsedValidation);
         process.exit(1);
     }
 
     let parsedResult;
-    do
-    {
+    do {
         execSyncSafe('sleep  5');
         const JSONResult = execSyncSafe(`sf deploy metadata report --jobid ${jobId} --target-org ${settings.org_alias} --json`);
         parsedResult = JSON.parse(JSONResult).result;
         console.log(`Validation Status: ${parsedResult.status}`);
     } while (parsedResult.done === false);
 
-    if (parsedResult.status !== 'Succeeded')
-    {
+    if (parsedResult.status !== 'Succeeded') {
         console.error('Validation failed. Errors:');
         console.error(parsedResult.details.componentFailures);
         gitBranchesSync('stage1', 'stage0');
@@ -148,8 +127,7 @@ function deploymentTestsPass()
 }
 
 // Function to deploy metadata
-function deployMetadata()
-{
+function deployMetadata() {
     execSyncSafe(`sf deploy metadata -r force-app -x ./manifest/package.xml --target-org ${settings.org_alias}`);
 }
 
@@ -160,5 +138,51 @@ function deployMetadata()
 // deploymentTestsPass();
 // deployMetadata();
 
-// Declare an object to hold the required variables
+/**
+ * checkout self
+ * branch structure:
+ * root/pipeline_script.yml
+ * root/org/{salesforce project}
+ * 
+ * install dependencies
+ * create stage0 branch based on model branch if it does not exist.
+ * create Homologation branch based on model branch if it does not exist.
+ *  checkout most recent branch
+ *  generate salesforce project
+ *  authorize salesforce project
+ *  generate salesforce manifest from-org
+ *  retrieve data using javascript + sf cli.
+ *  git add .
+ *  git commit 
+ *  git pull
+ * 
+ * ---------------------------------------------
+ * create production branch if it does not exist.
+ *  checkout most recent branch
+ *  generate salesforce project
+ *  authorize salesforce project
+ *  generate salesforce manifest from-org
+ *  retrieve data using javascript + sf cli.
+ *  git add .
+ *  git commit 
+ *  git pull
+ * ---------------------------------------------
+ * 
+ * main:stage0:
+ *  on pull(If pipeline is already running, fail or wait):
+ *    make salesforce tests(sf tests ./manifest/{cardNumber}/deploy.xml, ./manifest/{cardNumber}/destructiveChangesPre.xml, ./manifest/{cardNumber}/destructiveChangesPost.xml):
+ *      on success: 
+ *        deploy to Salesforce HML(sf deploy ./manifest/{cardNumber}/[A-z]{1,}\.xml)
+ *        make main like stage0
+ *        git switch to Homologation branch
+ *        sf retrieve changes from salesforce(sf retrieve ./manifest/card/cardNumber.xml or retrieve all using javascript?)
+ *        git commit changes to branch
+ *        git pull
+ *      on fail:
+ *        make stage0 like main
+ *
+ * card:deploy:
+ *  on pull:
+ *    store cardNumber
+ */
 var settings = { org_alias: '', org_path: '' };
