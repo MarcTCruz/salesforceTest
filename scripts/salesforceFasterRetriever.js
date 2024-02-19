@@ -1,5 +1,5 @@
 const fs = require('fs');
-const { DOMParser } = require('xmldom');
+const { DOMParser } = require('@xmldom/xmldom');
 const { spawn } = require('child_process');
 const readline = require('readline');
 
