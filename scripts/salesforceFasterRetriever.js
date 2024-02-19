@@ -21,6 +21,7 @@ function namesGetAll(filePath) {
     process.exit(error.code);
   }
 }
+
 function promptUserForConfirmation(message, optionNoCallback) {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -83,7 +84,10 @@ if (require.main === module) {
       process.exit(1);
     }
 
-    await promptUserForConfirmation('It will replace all retrieved files, do you want to continue? (y/n): ', () => { console.log("Operation canceled."); process.exit(0) });
+    await promptUserForConfirmation('It will replace all retrieved files, do you want to continue? (y/n): ',
+      function whenN() {
+        console.log("Operation canceled."); process.exit(0)
+      });
     const manifestPath = process.argv[2];
     retrieve(manifestPath);
   })(); // Immediately invoke the async function
