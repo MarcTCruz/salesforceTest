@@ -39,18 +39,8 @@ function promptUserForConfirmation(message, optionNoCallback) {
   });
 }
 
-async function salesforceRetrieveAll() {
-
-  // Check if argv is passed
-  if (!process.argv[2]) {
-    console.error('Error: You must call this script with the package.xml file path as an argument.')
-    console.erro(`Usage: node ${process.argv[1]} package.xml`);
-    process.exit(1);
-  }
-
-  await promptUserForConfirmation('It will replace all retrieved files, do you want to continue? (y/n): ', () => process.exit(0));
-
-  const names = namesGetAll(process.argv[2]);
+function retrieve(manifestPath) {
+  const names = namesGetAll(manifestPath);
   const commands = names.map(metadataName => `sf project retrieve start --metadata ${metadataName}`);
 
   // Execute the commands in parallel
@@ -85,4 +75,16 @@ async function salesforceRetrieveAll() {
     });
 }
 
-salesforceRetrieveAll();
+if (require.main === module) {
+  async () => {
+    if (!process.argv[2]) {
+      console.error('Error: You must call this script with the package.xml file path as an argument.')
+      console.erro(`Usage: node ${process.argv[1]} package.xml`);
+      process.exit(1);
+    }
+
+    await promptUserForConfirmation('It will replace all retrieved files, do you want to continue? (y/n): ', () => process.exit(0));
+
+    retrieve();
+  }
+}

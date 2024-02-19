@@ -25,8 +25,7 @@ function retrieveFromSalesforceAndCommitChanges(branchName, commitMessage) {
     execSyncSafe(`git switch ${branchName}`);
     execSyncSafe(`git fetch origin ${branchName}`);
 
-    // manifestHandler.js is a Node.js script that retrieves metadata
-    execSyncSafe(`node manifestHandler.js ./manifest/package.xml`);
+    //execSyncSafe(`node manifestHandler.js ./manifest/package.xml`);
 
     execSyncSafe(`git add .`);
     execSyncSafe(`git push`);
@@ -116,7 +115,12 @@ class SalesforceCI {
         chdirSafe(this.org.path);
     }
 
-    salesforceProjectPopulate() {
+    projectRetrieve() {
+        const { retrieve } = require('./salesforceFasterRetriever.js');
+        retrieve();
+    }
+
+    manifestGenerate() {
         execSyncSafe(`sf project generate manifest --output-dir ./manifest --from-org ${this.org.alias}`);
     }
 
